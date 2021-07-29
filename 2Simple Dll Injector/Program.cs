@@ -44,6 +44,12 @@ namespace _2Simple_Dll_Injector
         static extern IntPtr CreateRemoteThread(IntPtr hProcess,
             IntPtr lpThreadAttributes, uint dwStackSize, IntPtr lpStartAddress, IntPtr lpParameter, uint dwCreationFlags, IntPtr lpThreadId);
 
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern UInt32 WaitForSingleObject(IntPtr hHandle, UInt32 dwMilliseconds);
+
+        [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
+        static extern bool VirtualFreeEx(IntPtr hProcess, IntPtr lpAddress, int dwSize, uint dwFreeType);
+
         public static void Inject(string procname, string path)
         {
             string dll = path;
@@ -68,7 +74,7 @@ namespace _2Simple_Dll_Injector
 
             Console.WriteLine("Process found. ID: " + targetProcess.Id);
 
-            //Open a handle to target process and get all access 
+            //Open a handle to the target process and get all access 
             IntPtr handle = OpenProcess(0x001F0FFF, false, targetProcess.Id); //0x001F0FFF: Access - All
 
             //CreateRemoteThread will use LoadLibraryA to load dll as an argument
@@ -85,8 +91,11 @@ namespace _2Simple_Dll_Injector
             //Program loads dll
             CreateRemoteThread(handle, IntPtr.Zero, 0, LibraryAddress, AllocatedMemory, 0, IntPtr.Zero);
 
-            Console.WriteLine("Injected! Press enter to continue...");
-            Console.ReadLine();
+            //Wait for the loader to finish thread
+            WaitForSingleObject(handle, 0xFFFFFFFF); //0xFFFFFFFF: Infinite
+
+            //Free allocated memory for the dll 
+            VirtualFreeEx(handle, AllocatedMemory, ((dll.Length + 1) * Marshal.SizeOf(typeof(char))), 0x8000);
         }
     }
 }
