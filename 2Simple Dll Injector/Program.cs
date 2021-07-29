@@ -68,16 +68,21 @@ namespace _2Simple_Dll_Injector
 
             Console.WriteLine("Process found. ID: " + targetProcess.Id);
 
+            //Open a handle to target process and get all access 
             IntPtr handle = OpenProcess(0x001F0FFF, false, targetProcess.Id); //0x001F0FFF: Access - All
 
+            //CreateRemoteThread will use LoadLibraryA to load dll as an argument
             IntPtr LibraryAddress = GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA");
 
+            //Allocate memory for the dll 
             IntPtr AllocatedMemory = VirtualAllocEx(handle, IntPtr.Zero, (uint)((dll.Length + 1) * Marshal.SizeOf(typeof(char))), 0x00001000, 4); //0x00001000: Memory - commit, 4: Page - Read and Write
             Console.WriteLine("DLL allocated at: " + AllocatedMemory.ToString());
 
+            //Write dll into allocated memory
             UIntPtr bytesWritten;
             WriteProcessMemory(handle, AllocatedMemory, Encoding.Default.GetBytes(dll), (uint)((dll.Length + 1) * Marshal.SizeOf(typeof(char))), out bytesWritten);
 
+            //Program loads dll
             CreateRemoteThread(handle, IntPtr.Zero, 0, LibraryAddress, AllocatedMemory, 0, IntPtr.Zero);
 
             Console.WriteLine("Injected! Press enter to continue...");
