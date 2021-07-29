@@ -95,7 +95,7 @@ namespace _2Simple_Dll_Injector
             WaitForSingleObject(handle, 0xFFFFFFFF); //0xFFFFFFFF: Infinite
 
             //Free allocated memory for the dll 
-            VirtualFreeEx(handle, AllocatedMemory, ((dll.Length + 1) * Marshal.SizeOf(typeof(char))), 0x8000);
+            VirtualFreeEx(handle, AllocatedMemory, ((dll.Length + 1) * Marshal.SizeOf(typeof(char))), 0x8000); //0x8000: Memory - release
         }
     }
 }
