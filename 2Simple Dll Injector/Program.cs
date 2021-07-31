@@ -1,11 +1,10 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
+using System.Runtime.ConstrainedExecution;
 using System.Runtime.InteropServices;
+using System.Security;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace _2Simple_Dll_Injector
 {
@@ -50,6 +49,12 @@ namespace _2Simple_Dll_Injector
         [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
         static extern bool VirtualFreeEx(IntPtr hProcess, IntPtr lpAddress, int dwSize, uint dwFreeType);
 
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [ReliabilityContract(Consistency.WillNotCorruptState, Cer.Success)]
+        [SuppressUnmanagedCodeSecurity]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool CloseHandle(IntPtr hObject);
+
         public static void Inject(string procname, string path)
         {
             string dll = path;
@@ -81,21 +86,25 @@ namespace _2Simple_Dll_Injector
             IntPtr LibraryAddress = GetProcAddress(GetModuleHandle("kernel32.dll"), "LoadLibraryA");
 
             //Allocate memory for the dll 
-            IntPtr AllocatedMemory = VirtualAllocEx(handle, IntPtr.Zero, (uint)((dll.Length + 1) * Marshal.SizeOf(typeof(char))), 0x00001000, 4); //0x00001000: Memory - commit, 4: Page - Read and Write
+            IntPtr AllocatedMemory = VirtualAllocEx(handle, IntPtr.Zero, (uint)dll.Length + 1, 0x00001000, 4); //0x00001000: Memory - commit, 4: Page - Read and Write
             Console.WriteLine("DLL allocated at: " + AllocatedMemory.ToString());
 
             //Write dll into allocated memory
             UIntPtr bytesWritten;
-            WriteProcessMemory(handle, AllocatedMemory, Encoding.Default.GetBytes(dll), (uint)((dll.Length + 1) * Marshal.SizeOf(typeof(char))), out bytesWritten);
+            WriteProcessMemory(handle, AllocatedMemory, Encoding.Default.GetBytes(dll), (uint)dll.Length + 1, out bytesWritten);
 
             //Program loads dll
-            CreateRemoteThread(handle, IntPtr.Zero, 0, LibraryAddress, AllocatedMemory, 0, IntPtr.Zero);
+            IntPtr threadHandle = CreateRemoteThread(handle, IntPtr.Zero, 0, LibraryAddress, AllocatedMemory, 0, IntPtr.Zero);
 
             //Wait for the loader to finish thread
             WaitForSingleObject(handle, 0xFFFFFFFF); //0xFFFFFFFF: Infinite
 
+            //Freeing the injected thread handle
+            CloseHandle(threadHandle);
             //Free allocated memory for the dll 
-            VirtualFreeEx(handle, AllocatedMemory, ((dll.Length + 1) * Marshal.SizeOf(typeof(char))), 0x8000); //0x8000: Memory - release
+            VirtualFreeEx(handle, AllocatedMemory, dll.Length + 1, 0x8000); //0x8000: Memory - release
+            //Freeing handle for the target process
+            CloseHandle(handle);
         }
     }
 }
